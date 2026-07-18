@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <title>Chat-chattaren — DOM-harness</title>
+  <style>
+    body { font: 14px system-ui; background: #14161a; color: #e7e9ee; padding: 20px; }
+    #widget { max-width: 380px; border: 1px solid #2c313d; border-radius: 10px; padding: 12px; margin-bottom: 20px; }
+    #conv { display: flex; flex-direction: column; gap: 6px; min-height: 80px; }
+    .msg { padding: 8px 12px; border-radius: 12px; max-width: 75%; }
+    .them { background: #232733; align-self: flex-start; }
+    .me { background: #4f8cff; color: #fff; align-self: flex-end; }
+    .composer { display: flex; gap: 8px; margin-top: 10px; }
+    #inp { flex: 1; background: #1c1f26; color: #e7e9ee; border: 1px solid #2c313d; border-radius: 8px; padding: 8px; }
+    #send { background: #4f8cff; color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+    .chips { display: flex; gap: 6px; margin-top: 6px; }
+    .chip { background: #232733; border: 1px solid #2c313d; color: #e7e9ee; border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+    #results { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 13px; }
+    .pass { color: #46d19e; } .fail { color: #ff5c6c; }
+  </style>
+</head>
+<body>
+  <h2>DOM-harness (riktig webbläsare)</h2>
+
+  <div id="widget">
+    <div id="conv">
+      <div class="msg them">Hej! Vad gäller ditt ärende?</div>
+      <div class="msg me">jag vill ha pengarna tillbaka för order 12345</div>
+      <div class="chips">
+        <button class="chip">Retur/återbetalning</button>
+        <button class="chip">Orderstatus</button>
+      </div>
+    </div>
+    <div class="composer">
+      <textarea id="inp" rows="1" placeholder="Skriv ett meddelande…"></textarea>
+      <button id="send">Skicka</button>
+    </div>
+  </div>
+
+  <div id="results">Kör…</div>
+
+  <script type="module">
+    import { createAnchor, resolvePath, findAnchor } from '../src/anchor.js';
+    import { extractTranscript, harvestReplies, forHash, hash } from '../src/transcript.js';
+    import { setText, typeAndSend } from '../src/write.js';
+
+    const R = [];
+    const ok = (name, cond) => R.push([cond ? 'PASS' : 'FAIL', name]);
+
+    const conv = document.getElementById('conv');
+    const inp = document.getElementById('inp');
+    const send = document.getElementById('send');
+
+    // --- Riktig React-value-tracker (som React installerar den på en riktig input) ---
+    (function installTracker(el) {
+      const proto = Object.getPrototypeOf(el);
+      const nSet = Object.getOwnPropertyDescriptor(proto, 'value').set;
+      const nGet = Object.getOwnPropertyDescriptor(proto, 'value').get;
+      let tracked = nGet.call(el);
+      Object.defineProperty(el, 'value', {
+        configurable: true, get() { return nGet.call(this); },
+        set(v) { nSet.call(this, v); tracked = String(v); },
+      });
+      el._valueTracker = { getValue: () => String(tracked), setValue: (v) => { tracked = String(v); } };
+      el._onChange = 0;
+      el.addEventListener('input', () => {
+        if (el._valueTracker.getValue() !== el.value) { el._onChange++; el._valueTracker.setValue(el.value); }
+      });
+    })(inp);
+
+    // 1. extractTranscript med RIKTIG geometri → DU:/DEM:-etiketter
+    const { text } = extractTranscript(conv, inp);
+    ok('extract: DEM-rad vänsterjusterad', /DEM:.*Vad gäller ditt ärende/.test(text));
+    ok('extract: DU-rad högerjusterad', /DU:.*pengarna tillbaka för order 12345/.test(text));
+    ok('extract: composer-placeholder utesluten', !text.includes('Skriv ett meddelande'));
+
+    // 2. harvestReplies plockar chips, inte skicka-knappen
+    const replies = harvestReplies(conv, inp, send);
+    ok('harvest: 2 chips', replies.length === 2 && replies[0].label === 'Retur/återbetalning');
+
+    // 3. setText fyrar RIKTIG onChange på React-kontrollerad input (prototyp-setter)
+    inp._onChange = 0;
+    const wrote = setText(inp, 'kan ni bekräfta återbetalningen?');
+    ok('write: värde satt', inp.value === 'kan ni bekräfta återbetalningen?');
+    ok('write: React onChange fyrade', inp._onChange === 1);
+    ok('write: returnerar true', wrote === true);
+
+    // 4. typeAndSend klickar riktig skicka-knapp
+    let sent = 0; send.addEventListener('click', () => sent++);
+    const res = typeAndSend(inp, 'hej', send);
+    ok('typeAndSend: how=button', res.ok && res.how === 'button');
+    ok('typeAndSend: knappen klickad', sent === 1);
+
+    // 5. contenteditable via RIKTIG execCommand
+    const ce = document.createElement('div');
+    ce.contentEditable = 'true'; ce.style.cssText = 'border:1px solid #333;padding:6px';
+    document.body.appendChild(ce);
+    const ceOk = setText(ce, 'återbetalning tack');
+    ok('contenteditable: execCommand landade text', ceOk && (ce.innerText || ce.textContent).includes('återbetalning'));
+
+    // 6. anchor: skapa på input, lös igen
+    const a = createAnchor(inp, 'input');
+    const resolved = resolvePath(a.path, document);
+    ok('anchor: path löser tillbaka till input', resolved === inp);
+
+    // 7. anchor: läkning efter borttaget id (fingerprint-fallback)
+    const a2 = createAnchor(send, 'send');
+    send.id = 'send'; // path byggd före ev. id-ändring; testa findAnchor
+    const found = findAnchor(a2);
+    ok('anchor: findAnchor hittar send-knappen', found.el === send);
+
+    // 8. hash stabil mot tidsstämpel
+    ok('hash: "2 min sedan" ignoreras', hash(forHash('DEM: hej 2 min sedan')) === hash(forHash('DEM: hej 5 min sedan')));
+
+    // Rendera
+    const el = document.getElementById('results');
+    const passed = R.filter(r => r[0] === 'PASS').length;
+    el.innerHTML = R.map(([s, n]) => `<span class="${s.toLowerCase()}">${s}</span> ${n}`).join('\n')
+      + `\n\n${passed}/${R.length} PASS`;
+    window.__HARNESS__ = { passed, total: R.length, results: R };
+    console.log(`[harness] ${passed}/${R.length} PASS`, R.filter(r => r[0] === 'FAIL'));
+  </script>
+</body>
+</html>

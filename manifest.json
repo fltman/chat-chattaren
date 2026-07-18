@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Chat-chattaren",
+  "version": "0.1.0",
+  "description": "Peka ut kundtjänstchattens fält och låt en LLM föra samtalet åt dig — du godkänner varje meddelande.",
+  "permissions": ["storage", "scripting", "activeTab", "sidePanel", "tabs", "webNavigation"],
+  "host_permissions": [],
+  "optional_host_permissions": ["https://*/*"],
+  "background": { "service_worker": "sw.js", "type": "module" },
+  "side_panel": { "default_path": "panel.html" },
+  "action": { "default_title": "Chat-chattaren" },
+  "icons": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/content.js",
+        "src/picker.js",
+        "src/anchor.js",
+        "src/transcript.js",
+        "src/write.js",
+        "src/store.js"
+      ],
+      "matches": ["https://*/*"]
+    }
+  ]
+}
