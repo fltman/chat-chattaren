@@ -4,35 +4,22 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="../panel.css">
-  <title>Chat-chattaren — panel-preview</title>
-  <style>body { max-width: 360px; margin: 0 auto; border-left: 1px solid #2c313d; border-right: 1px solid #2c313d; }</style>
+  <title>Chat-chattaren</title>
 </head>
 <body>
-  <!-- Inline chrome-stub (tillåtet på localhost, ej i tillägget) så panel.js kör som i skarpt läge. -->
-  <script>
-    const _local = {}, _session = {};
-    const store = (bag) => ({
-      get: async (k) => (typeof k === 'string' ? { [k]: bag[k] } : Object.fromEntries((k || Object.keys(bag)).map(x => [x, bag[x]]))),
-      set: async (o) => Object.assign(bag, o),
-      remove: async (k) => { delete bag[k]; },
-    });
-    window.chrome = {
-      storage: { local: store(_local), session: store(_session) },
-      tabs: {
-        query: async () => [{ id: 1, url: 'https://konto.bonniernews.se/chat/faq/' }],
-        sendMessage: async () => ({ ok: true }),
-      },
-      runtime: { onMessage: { addListener() {} }, sendMessage: async () => {}, getURL: (p) => p },
-      scripting: { executeScript: async () => [], registerContentScripts: async () => {}, getRegisteredContentScripts: async () => [] },
-      permissions: { request: async () => true, contains: async () => true, onRemoved: { addListener() {} } },
-    };
-  </script>
+<style>body{max-width:360px;margin:0 auto;border-left:1px solid #2c313d;border-right:1px solid #2c313d}</style>
+<script>
+const _local={},_session={};
+const store=bag=>({get:async k=>(typeof k==='string'?{[k]:bag[k]}:Object.fromEntries((k||Object.keys(bag)).map(x=>[x,bag[x]]))),set:async o=>Object.assign(bag,o),remove:async k=>{delete bag[k]}});
+window.chrome={storage:{local:store(_local),session:store(_session)},tabs:{query:async()=>[{id:1,url:'https://exempel.se/support'}],sendMessage:async()=>({ok:true})},runtime:{onMessage:{addListener(){}},sendMessage:async()=>{},getURL:p=>p},scripting:{executeScript:async()=>[],registerContentScripts:async()=>{},getRegisteredContentScripts:async()=>[]},permissions:{request:async()=>true,contains:async()=>true,onRemoved:{addListener(){}}},webNavigation:{getAllFrames:async()=>[]}};
+</script>
 
   <header>
     <span class="logo">Chat-chattaren</span>
     <span id="cost" class="cost" hidden></span>
   </header>
 
+  <!-- Nyckel -->
   <section id="v-key" class="screen" hidden>
     <h2>Din OpenRouter-nyckel</h2>
     <p class="lead">Verktyget använder din egen nyckel hos OpenRouter (en tjänst som ger tillgång
@@ -44,10 +31,24 @@
     <button id="key-save" class="primary">Spara</button>
   </section>
 
+  <!-- Profil / pekning -->
   <section id="v-profile" class="screen" hidden>
     <h2>Ditt ärende</h2>
     <textarea id="goal" rows="2" placeholder="Vad vill du ha uträttat? T.ex. pengarna tillbaka för order 12345 som kom trasig."></textarea>
     <textarea id="facts" rows="3" placeholder="Fakta verktyget får använda — ordernummer, datum, belopp. Skriv inget känsligt (personnummer, kort) här."></textarea>
+
+    <label class="sel">Personlighet
+      <select id="persona">
+        <option value="balanserad">Balanserad</option>
+        <option value="bestämd">Bestämd</option>
+        <option value="glad">Glad</option>
+        <option value="eftertänksam">Eftertänksam</option>
+        <option value="skämtsam">Skämtsam</option>
+        <option value="velig">Velig</option>
+        <option value="osäker">Osäker</option>
+      </select>
+    </label>
+
     <div class="pick-note">Öppna företagets chatt först så minst ett meddelande syns, peka sedan ut:</div>
     <div class="picks">
       <button class="pick" data-kind="input"><span class="dot" data-for="input"></span>Skrivfältet</button>
@@ -55,16 +56,21 @@
       <button class="pick rec" data-kind="send"><span class="dot" data-for="send"></span>Skicka-knappen</button>
     </div>
     <p class="muted small">Skicka-knappen rekommenderas — utan den är det inte säkert att meddelanden går iväg.</p>
+
     <label class="check"><input id="auto-mode" type="checkbox"> Kör automatiskt
       <span class="muted">(skicka utan att godkänna varje meddelande)</span></label>
     <p class="muted small">Även i autoläge stoppar verktyget alltid för dig vid personnummer, kortnummer,
       uppdiktade uppgifter, bindande åtaganden och juridik.</p>
+
     <button id="activate" class="primary" disabled>Starta</button>
     <p id="grant-note" class="muted small" hidden></p>
   </section>
 
+  <!-- Kör -->
   <section id="v-run" class="screen" hidden>
     <div id="status" class="status"></div>
+    <div id="polldbg" class="muted" style="white-space:pre-line;font:11px ui-monospace,monospace;padding:8px;border:1px solid var(--line);border-radius:8px;word-break:break-word"></div>
+
     <div id="review" class="review" hidden>
       <div class="obs" id="obs"></div>
       <div class="draft-wrap">
@@ -80,9 +86,11 @@
         <button id="btn-abort" class="ghost">Avsluta</button>
       </div>
     </div>
+
     <div id="terminal" class="terminal" hidden>
       <div id="term-msg"></div>
-      <button id="btn-restart" class="primary">Börja om</button>
+      <button id="btn-continue" class="primary" hidden>Fortsätt</button>
+      <button id="btn-restart">Börja om</button>
     </div>
   </section>
 
